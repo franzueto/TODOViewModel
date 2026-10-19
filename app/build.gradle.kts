@@ -50,6 +50,10 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.activity.compose)
 
+  // ViewModel and lifecycle-aware state collection for Compose
+  implementation(libs.androidx.lifecycle.viewmodel.compose)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+
   // Compose
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.tooling.preview)
@@ -59,4 +63,5 @@ dependencies {
 
   // Local tests
   testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)
 }

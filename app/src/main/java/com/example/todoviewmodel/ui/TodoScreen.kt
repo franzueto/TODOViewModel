@@ -21,10 +21,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,35 +31,51 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.todoviewmodel.R
+import com.example.todoviewmodel.data.Todo
 import com.example.todoviewmodel.theme.TODOViewModelTheme
 
-data class Todo(
-  val id: Long,
-  val title: String,
-  val isDone: Boolean = false,
-)
-
+/** Stateful screen: connects the ViewModel to the UI. */
 @Composable
-fun TodoScreen(modifier: Modifier = Modifier) {
-  // All of the screen's data and logic lives inside this composable.
-  val todos = remember { mutableStateListOf<Todo>() }
-  var nextId by remember { mutableLongStateOf(0L) }
-  var newTodoText by remember { mutableStateOf("") }
+fun TodoScreen(
+  modifier: Modifier = Modifier,
+  viewModel: TodoViewModel = viewModel(),
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-  val remainingCount = todos.count { !it.isDone }
+  TodoContent(
+    uiState = uiState,
+    onAddTodo = viewModel::addTodo,
+    onToggleTodo = viewModel::toggleTodo,
+    onDeleteTodo = viewModel::deleteTodo,
+    modifier = modifier,
+  )
+}
 
-  fun addTodo() {
-    if (newTodoText.isBlank()) return
-    todos.add(Todo(id = nextId, title = newTodoText.trim()))
-    nextId++
+/** Stateless UI: draws [uiState] and reports user events through callbacks. */
+@Composable
+fun TodoContent(
+  uiState: TodoUiState,
+  onAddTodo: (String) -> Unit,
+  onToggleTodo: (Long) -> Unit,
+  onDeleteTodo: (Long) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  // The text being typed is UI element state, so it stays in the UI.
+  // rememberSaveable keeps it across configuration changes.
+  var newTodoText by rememberSaveable { mutableStateOf("") }
+
+  fun submit() {
+    onAddTodo(newTodoText)
     newTodoText = ""
   }
 
   Column(modifier = modifier.fillMaxSize()) {
     Text(text = "My tasks", style = MaterialTheme.typography.headlineMedium)
     Text(
-      text = if (todos.isEmpty()) "Nothing to do yet" else "$remainingCount of ${todos.size} remaining",
+      text = if (uiState.isEmpty) "Nothing to do yet" else "${uiState.remainingCount} of ${uiState.todos.size} remaining",
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -78,17 +92,17 @@ fun TodoScreen(modifier: Modifier = Modifier) {
         label = { Text("New task") },
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { addTodo() }),
+        keyboardActions = KeyboardActions(onDone = { submit() }),
         modifier = Modifier.weight(1f),
       )
-      Button(onClick = { addTodo() }, enabled = newTodoText.isNotBlank()) {
+      Button(onClick = { submit() }, enabled = newTodoText.isNotBlank()) {
         Text("Add")
       }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    if (todos.isEmpty()) {
+    if (uiState.isEmpty) {
       Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
           text = "Add your first task above",
@@ -97,17 +111,14 @@ fun TodoScreen(modifier: Modifier = Modifier) {
       }
     } else {
       LazyColumn {
-        items(todos, key = { it.id }) { todo ->
+        items(uiState.todos, key = { it.id }) { todo ->
           Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
           ) {
             Checkbox(
               checked = todo.isDone,
-              onCheckedChange = { checked ->
-                val index = todos.indexOfFirst { it.id == todo.id }
-                todos[index] = todo.copy(isDone = checked)
-              },
+              onCheckedChange = { onToggleTodo(todo.id) },
             )
             Text(
               text = todo.title,
@@ -116,7 +127,7 @@ fun TodoScreen(modifier: Modifier = Modifier) {
               color = if (todo.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
               modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = { todos.removeAll { it.id == todo.id } }) {
+            IconButton(onClick = { onDeleteTodo(todo.id) }) {
               Icon(
                 painter = painterResource(R.drawable.ic_delete),
                 contentDescription = "Delete ${todo.title}",
@@ -131,6 +142,22 @@ fun TodoScreen(modifier: Modifier = Modifier) {
 
 @Preview(showBackground = true)
 @Composable
-fun TodoScreenPreview() {
-  TODOViewModelTheme { TodoScreen() }
+fun TodoContentEmptyPreview() {
+  TODOViewModelTheme {
+    TodoContent(uiState = TodoUiState(), onAddTodo = {}, onToggleTodo = {}, onDeleteTodo = {})
+  }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun TodoContentPreview() {
+  val todos =
+    listOf(
+      Todo(id = 1, title = "Buy milk", isDone = true),
+      Todo(id = 2, title = "Walk the dog"),
+      Todo(id = 3, title = "Study ViewModel"),
+    )
+  TODOViewModelTheme {
+    TodoContent(uiState = TodoUiState(todos = todos), onAddTodo = {}, onToggleTodo = {}, onDeleteTodo = {})
+  }
 }
