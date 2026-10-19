@@ -1,0 +1,1250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TODO ViewModel Codelab</title>
+<meta name="description" content="Step by step: improve a Jetpack Compose TODO app with a ViewModel, a UI state class and a repository.">
+<style>
+  :root {
+    --bg: #f6f7f5;
+    --surface: #ffffff;
+    --surface-2: #eef1ee;
+    --text: #1b221f;
+    --muted: #59645f;
+    --border: #dce1dd;
+    --accent: #17795a;
+    --accent-hover: #11654a;
+    --accent-contrast: #ffffff;
+    --accent-soft: #e2f1ea;
+    --code-bg: #f4f6f4;
+    --code-text: #1b221f;
+    --hl-bg: rgba(23, 121, 90, 0.13);
+    --note-bg: #e8f0fb; --note-border: #3a6fc4;
+    --warn-bg: #fdf3e1; --warn-border: #c98a12;
+    --tip-bg: #e6f4ec;  --tip-border: #17795a;
+    --tk-k: #0b3fb3; --tk-s: #0a7a1d; --tk-c: #7d8580; --tk-a: #8f7a00; --tk-n: #1750eb; --tk-t: #00627a;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141816; --surface: #1b201e; --surface-2: #232a27; --text: #e4e9e6; --muted: #9aa69f; --border: #2e3633;
+      --accent: #4cc69a; --accent-hover: #6bd5ae; --accent-contrast: #0c1a14; --accent-soft: #1c3229;
+      --code-bg: #151a18; --code-text: #d7ddd9; --hl-bg: rgba(76, 198, 154, 0.2);
+      --note-bg: #1a2433; --note-border: #6b9be0; --warn-bg: #2b2415; --warn-border: #e0a83a; --tip-bg: #18291f; --tip-border: #4cc69a;
+      --tk-k: #cf8e6d; --tk-s: #6aab73; --tk-c: #7a7e85; --tk-a: #b3ae60; --tk-n: #2aacb8; --tk-t: #56a8f5;
+      --shadow: 0 1px 2px rgba(0,0,0,.4);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141816; --surface: #1b201e; --surface-2: #232a27; --text: #e4e9e6; --muted: #9aa69f; --border: #2e3633;
+    --accent: #4cc69a; --accent-hover: #6bd5ae; --accent-contrast: #0c1a14; --accent-soft: #1c3229;
+    --code-bg: #151a18; --code-text: #d7ddd9; --hl-bg: rgba(76, 198, 154, 0.2);
+    --note-bg: #1a2433; --note-border: #6b9be0; --warn-bg: #2b2415; --warn-border: #e0a83a; --tip-bg: #18291f; --tip-border: #4cc69a;
+    --tk-k: #cf8e6d; --tk-s: #6aab73; --tk-c: #7a7e85; --tk-a: #b3ae60; --tk-n: #2aacb8; --tk-t: #56a8f5;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 88px; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  a:hover { color: var(--accent-hover); }
+  code { font-family: var(--mono); font-size: .88em; background: var(--surface-2); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar h1 { margin: 0; font-size: 1.05rem; font-weight: 600; line-height: 1.3; flex: 1; min-width: 0; }
+  .logo {
+    flex: none; width: 32px; height: 32px; border-radius: 8px;
+    display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-contrast); font-weight: 700;
+  }
+  .time-left { flex: none; color: var(--muted); font-size: .875rem; white-space: nowrap; }
+  .progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: transparent; }
+  .progress div { height: 100%; width: 0; background: var(--accent); transition: width .25s ease; }
+  .menu-btn {
+    display: none; flex: none;
+    font: inherit; font-size: .875rem; font-weight: 600;
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
+  }
+
+  /* ---------- layout ---------- */
+  .layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); max-width: 1240px; margin: 0 auto; }
+  .sidebar {
+    position: sticky; top: 61px; align-self: start;
+    height: calc(100vh - 61px); overflow-y: auto;
+    padding: 24px 12px 24px 20px;
+  }
+  .sidebar ol { list-style: none; margin: 0; padding: 0; }
+  .sidebar a {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 8px 12px; border-radius: 8px;
+    color: var(--muted); text-decoration: none; font-size: .925rem; line-height: 1.4;
+  }
+  .sidebar a:hover { background: var(--surface-2); color: var(--text); }
+  .sidebar a .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%;
+    display: inline-grid; place-items: center;
+    font-size: .75rem; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface);
+    transform: translateY(5px);
+  }
+  .sidebar a.visited .n { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+  .sidebar a[aria-current="step"] { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+  .sidebar a[aria-current="step"] .n { background: var(--accent); color: var(--accent-contrast); border-color: transparent; }
+
+  main { min-width: 0; padding: 32px 32px 48px; }
+  article {
+    max-width: 800px; margin: 0 auto;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 36px 44px 40px;
+  }
+  .step h2 { margin: 0 0 20px; font-size: 1.65rem; line-height: 1.25; letter-spacing: -.01em; }
+  .step-num { color: var(--accent); }
+  .step h3 { margin: 32px 0 10px; font-size: 1.15rem; }
+  .step p, .step ul, .step ol { margin: 0 0 14px; }
+  .step li { margin-bottom: 6px; }
+  .step li > ul { margin-top: 6px; }
+
+  .pager { max-width: 800px; margin: 20px auto 0; display: flex; justify-content: space-between; gap: 12px; }
+  .pager button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    padding: 10px 22px; border-radius: 999px; min-height: 44px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  }
+  .pager button:hover:not(:disabled) { background: var(--surface-2); }
+  .pager button:disabled { visibility: hidden; }
+  .pager #next { background: var(--accent); color: var(--accent-contrast); border-color: transparent; }
+  .pager #next:hover { background: var(--accent-hover); }
+
+  /* ---------- code ---------- */
+  figure.code { margin: 16px 0 20px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--code-bg); }
+  figure.code figcaption {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 6px 8px 6px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    font-size: .8rem; color: var(--muted);
+  }
+  .code-file { font-family: var(--mono); overflow-wrap: anywhere; }
+  .copy {
+    flex: none; font: inherit; font-weight: 600; cursor: pointer;
+    padding: 3px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  }
+  .copy:hover { border-color: var(--accent); }
+  .copy.done { color: var(--accent); border-color: var(--accent); }
+  pre { margin: 0; overflow-x: auto; padding: 12px 0; }
+  pre code {
+    display: block; min-width: max-content;
+    background: none; padding: 0; border-radius: 0;
+    font-size: .82rem; line-height: 1.6; color: var(--code-text);
+    overflow-wrap: normal;
+  }
+  pre code:not(.ready) { padding: 0 16px; white-space: pre; }
+  .line { display: block; padding: 0 16px; white-space: pre; border-left: 3px solid transparent; }
+  .line.hl { background: var(--hl-bg); border-left-color: var(--accent); }
+  .tk-k { color: var(--tk-k); }
+  .tk-s { color: var(--tk-s); }
+  .tk-c { color: var(--tk-c); font-style: italic; }
+  .tk-a { color: var(--tk-a); }
+  .tk-n { color: var(--tk-n); }
+  .tk-t { color: var(--tk-t); }
+
+  /* ---------- callouts, tables, lists ---------- */
+  .callout { margin: 18px 0; padding: 12px 16px; border-radius: 8px; border-left: 4px solid; font-size: .95rem; }
+  .callout.note { background: var(--note-bg); border-color: var(--note-border); }
+  .callout.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+  .callout.tip  { background: var(--tip-bg);  border-color: var(--tip-border); }
+  .callout code { background: rgba(127,127,127,.15); }
+
+  .table-wrap { overflow-x: auto; margin: 12px 0 20px; }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  td code { white-space: nowrap; overflow-wrap: normal; }
+  th { font-weight: 600; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+
+  dl.explain { margin: 8px 0 18px; }
+  dl.explain dt { font-weight: 600; margin-top: 14px; }
+  dl.explain dd { margin: 4px 0 0; padding-left: 14px; border-left: 2px solid var(--border); color: var(--text); }
+  dl.explain dd ul { margin-top: 8px; }
+
+  ol.tasks { padding-left: 1.4em; }
+  ol.tasks li::marker { color: var(--accent); font-weight: 700; }
+
+  ul.checklist { list-style: none; padding: 0; }
+  ul.checklist li { margin: 0; }
+  ul.checklist label {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  }
+  ul.checklist label:hover { background: var(--surface-2); }
+  ul.checklist input { flex: none; width: 18px; height: 18px; margin-top: 4px; accent-color: var(--accent); }
+  ul.checklist input:checked + * , ul.checklist label:has(input:checked) { color: var(--muted); }
+  .checklist-done { font-weight: 600; color: var(--accent); }
+
+  ul.links { padding-left: 1.2em; }
+
+  /* ---------- overview mock ---------- */
+  .app-preview { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 28px; align-items: start; margin: 8px 0 8px; }
+  .app-preview h3 { margin-top: 0; }
+  .phone {
+    border: 8px solid var(--text); border-radius: 26px;
+    background: var(--surface); padding: 22px 14px 40px;
+    font-size: .72rem; line-height: 1.4;
+  }
+  .phone-title { font-size: 1.15rem; font-weight: 500; }
+  .phone-sub { color: var(--muted); margin-bottom: 10px; }
+  .phone-input { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .phone-input span { flex: 1; border: 1.5px solid var(--muted); border-radius: 4px; padding: 6px; color: var(--muted); }
+  .phone-input b { background: var(--accent); color: var(--accent-contrast); border-radius: 999px; padding: 4px 9px; font-weight: 500; }
+  .phone-row { display: flex; align-items: center; gap: 8px; padding: 5px 2px; }
+  .phone-row i { width: 12px; height: 12px; border: 1.5px solid var(--muted); border-radius: 2px; }
+  .phone-row.done i { background: var(--accent); border-color: var(--accent); }
+  .phone-row.done span { text-decoration: line-through; color: var(--muted); }
+
+  /* ---------- flow diagram ---------- */
+  .flow { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr); align-items: stretch; gap: 8px; margin: 20px 0 24px; }
+  .flow-box { border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; }
+  .flow-box small { text-transform: uppercase; letter-spacing: .06em; font-size: .68rem; font-weight: 700; color: var(--muted); }
+  .flow-box strong { font-family: var(--mono); font-size: .95rem; }
+  .flow-box span { font-size: .82rem; color: var(--muted); line-height: 1.45; }
+  .flow-box.ui { border-top: 4px solid var(--note-border); }
+  .flow-box.vm { border-top: 4px solid var(--accent); }
+  .flow-box.data { border-top: 4px solid var(--warn-border); }
+  .flow-arrows { display: flex; flex-direction: column; justify-content: center; gap: 10px; font-size: .75rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .flow-arrows b { color: var(--accent); font-size: 1rem; }
+  .flow-arrows .up { text-align: right; }
+
+  /* ---------- small screens ---------- */
+  @media (max-width: 900px) {
+    .menu-btn { display: inline-block; }
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 30;
+      width: min(300px, 85vw); height: 100vh;
+      background: var(--surface); border-right: 1px solid var(--border);
+      transform: translateX(-100%); transition: transform .2s ease;
+      padding-top: 20px;
+    }
+    .sidebar.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.25); }
+    .scrim { position: fixed; inset: 0; z-index: 25; background: rgba(0,0,0,.35); }
+    main { padding: 20px 16px 40px; }
+    article { padding: 24px 20px 28px; border-radius: 12px; }
+  }
+  @media (max-width: 640px) {
+    .topbar { padding: 10px 16px; gap: 10px; }
+    .topbar h1 { font-size: .95rem; }
+    .logo { display: none; }
+    article { padding: 20px 16px 24px; }
+    .step h2 { font-size: 1.35rem; }
+    .app-preview { grid-template-columns: minmax(0, 1fr); }
+    .phone { max-width: 220px; }
+    .flow { grid-template-columns: minmax(0, 1fr); }
+    .flow-arrows { flex-direction: row; justify-content: center; gap: 24px; }
+    .flow-arrows b { display: none; }
+    .flow-arrows .down::after { content: " ↓"; color: var(--accent); }
+    .flow-arrows .up::before { content: "↑ "; color: var(--accent); }
+    .time-left { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .progress div, .sidebar { transition: none; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <button id="menu-btn" class="menu-btn" type="button" aria-expanded="false" aria-controls="sidebar">Steps</button>
+  <span class="logo" aria-hidden="true">✓</span>
+  <h1>Improve the TODO app with ViewModel and State</h1>
+  <span id="time-left" class="time-left"></span>
+  <div class="progress" aria-hidden="true"><div id="progress-bar"></div></div>
+</header>
+
+<div class="layout">
+  <nav id="sidebar" class="sidebar" aria-label="Codelab steps">
+    <ol id="step-list"></ol>
+  </nav>
+
+  <main>
+    <article id="content">
+<section class="step" id="step-1" data-title="Overview" data-minutes="2">
+<h2><span class="step-num">1.</span> Overview</h2>
+<p>In this codelab you'll take a small TODO app where <em>everything</em> lives inside a single composable and restructure it into a ViewModel, a UI state class and a repository.</p>
+<div class="app-preview">
+  <div class="phone" aria-hidden="true">
+    <div class="phone-title">My tasks</div>
+    <div class="phone-sub">1 of 2 remaining</div>
+    <div class="phone-input"><span>New task</span><b>Add</b></div>
+    <div class="phone-row done"><i></i><span>Buy milk</span></div>
+    <div class="phone-row"><i></i><span>Study ViewModel</span></div>
+  </div>
+  <div>
+    <h3>What you'll build</h3>
+    <p>The same TODO app, with the same features (add, complete and delete tasks), but now:</p>
+    <ul>
+      <li>Tasks survive screen rotation and other configuration changes.</li>
+      <li>The UI only draws state and reports events.</li>
+      <li>The logic can be unit tested without an emulator.</li>
+      <li>Previews can show any state you want.</li>
+    </ul>
+  </div>
+</div>
+
+<h3>What you'll learn</h3>
+<ul>
+  <li>Why state stored with <code>remember</code> is lost when the <code>Activity</code> is recreated.</li>
+  <li>How a <code>ViewModel</code> keeps state across configuration changes.</li>
+  <li>How to model a screen with a single, immutable <strong>UI state</strong> class.</li>
+  <li>How a <strong>repository</strong> becomes the single source of truth for your data.</li>
+  <li>How to expose state with <code>StateFlow</code> and collect it with <code>collectAsStateWithLifecycle()</code>.</li>
+  <li>How to split a composable into a <strong>stateful</strong> and a <strong>stateless</strong> version.</li>
+  <li>How to unit test a ViewModel.</li>
+</ul>
+
+<h3>What you'll need</h3>
+<ul>
+  <li>The latest stable version of Android Studio.</li>
+  <li>An emulator or device running Android 7.0 (API 24) or newer.</li>
+  <li>Basic knowledge of Kotlin and Jetpack Compose (<code>@Composable</code>, <code>remember</code>, <code>Column</code>, <code>LazyColumn</code>).</li>
+</ul>
+<div class="callout note"><strong>Prefer a guide?</strong> You can follow this codelab together with an AI coding agent that explains each change as you make it. The <a href="https://github.com/franzueto/TODOViewModel#follow-the-codelab-with-an-ai-agent" target="_blank" rel="noopener">README</a> has a ready-to-use prompt.</div>
+</section>
+
+<section class="step" id="step-2" data-title="Get the code and run it" data-minutes="5" hidden>
+<h2><span class="step-num">2.</span> Get the code and run it</h2>
+<p>The code is on GitHub at <a href="https://github.com/franzueto/TODOViewModel" target="_blank" rel="noopener">github.com/franzueto/TODOViewModel</a>. Clone it. The <code>main</code> branch, which is checked out by default, contains the starting code.</p>
+<figure class="code"><figcaption><span class="code-file">Terminal</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-bash">git clone https://github.com/franzueto/TODOViewModel.git
+cd TODOViewModel</code></pre></figure>
+<p>Open the <code>TODOViewModel</code> folder in Android Studio, wait for Gradle to sync and click <strong>Run</strong>.</p>
+<div class="callout tip">You can also clone from Android Studio: select <strong>File &gt; New &gt; Project from Version Control</strong> and paste <code>https://github.com/franzueto/TODOViewModel.git</code>.</div>
+
+<h3>Try it out</h3>
+<ol class="tasks">
+  <li>Add three tasks, for example <em>Buy milk</em>, <em>Walk the dog</em> and <em>Study ViewModel</em>.</li>
+  <li>Mark one of them as done.</li>
+  <li>Type something in the <strong>New task</strong> field, but don't add it.</li>
+  <li>Rotate the device. On the emulator, use the rotate buttons in the toolbar. Make sure auto-rotate is enabled in the device's quick settings.</li>
+</ol>
+<div class="callout warn"><strong>Your tasks are gone.</strong> The list is empty and the text you typed has disappeared.</div>
+
+<h3>Why does this happen?</h3>
+<p>Open <code>ui/TodoScreen.kt</code>. All of the screen's state is created inside the composable:</p>
+<figure class="code"><figcaption><span class="code-file">ui/TodoScreen.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin">@Composable
+fun TodoScreen(modifier: Modifier = Modifier) {
+  // All of the screen&#x27;s data and logic lives inside this composable.
+  val todos = remember { mutableStateListOf&lt;Todo&gt;() }
+  var nextId by remember { mutableLongStateOf(0L) }
+  var newTodoText by remember { mutableStateOf(&quot;&quot;) }
+
+  val remainingCount = todos.count { !it.isDone }
+
+  fun addTodo() {
+    if (newTodoText.isBlank()) return
+    todos.add(Todo(id = nextId, title = newTodoText.trim()))
+    nextId++
+    newTodoText = &quot;&quot;
+  }
+
+  Column(modifier = modifier.fillMaxSize()) {
+    // ... the UI reads and changes the state above directly
+  }
+}</code></pre></figure>
+<p><code>remember</code> keeps a value across <strong>recompositions</strong>, but not across <strong>configuration changes</strong>. When the device rotates, Android destroys the <code>Activity</code> and creates a new one, so the composition starts from scratch and every <code>remember</code> runs again with its initial value.</p>
+<p>Rotation isn't the only configuration change. The same happens when the user switches to dark mode, changes the language, resizes the window in multi-window mode or unfolds a foldable.</p>
+
+<h3>Other problems with this code</h3>
+<ul>
+  <li><strong>UI and logic are mixed.</strong> Generating ids, trimming and validating input and updating the list all happen in the same function that draws the UI.</li>
+  <li><strong>It's hard to test.</strong> To check that a blank task is ignored you would need to run a UI test.</li>
+  <li><strong>It's hard to preview.</strong> <code>TodoScreenPreview</code> can only show an empty list, because the composable creates its own data.</li>
+  <li><strong>The data has nowhere to grow.</strong> Saving tasks to a database later would mean changing the UI code.</li>
+</ul>
+<div class="callout note"><strong>What about <code>rememberSaveable</code>?</strong> It survives configuration changes by saving values into a <code>Bundle</code>. It's great for small pieces of UI state, like the text being typed, which you'll use it for later. It isn't meant for your app's data. A list of custom objects would need a custom <code>Saver</code>, and <code>Bundle</code>s have a small size limit.</div>
+</section>
+
+<section class="step" id="step-3" data-title="Plan the new architecture" data-minutes="3" hidden>
+<h2><span class="step-num">3.</span> Plan the new architecture</h2>
+<p>You'll split the screen into layers. Each layer has one job, and data moves in a single direction. This is called <strong>unidirectional data flow</strong> (UDF):</p>
+<div class="flow" role="img" aria-label="TodoScreen sends events to TodoViewModel, which calls TodoRepository. TodoRepository sends data to TodoViewModel, which sends UI state to TodoScreen.">
+  <div class="flow-box ui"><small>UI layer</small><strong>TodoScreen</strong><span>Draws the state and reports events</span></div>
+  <div class="flow-arrows"><span class="down">events <b>→</b></span><span class="up"><b>←</b> UI state</span></div>
+  <div class="flow-box vm"><small>State holder</small><strong>TodoViewModel</strong><span>Survives configuration changes and produces <code>TodoUiState</code></span></div>
+  <div class="flow-arrows"><span class="down">calls <b>→</b></span><span class="up"><b>←</b> data</span></div>
+  <div class="flow-box data"><small>Data layer</small><strong>TodoRepository</strong><span>Single source of truth for the tasks</span></div>
+</div>
+<ul>
+  <li><strong>State flows up.</strong> The repository holds the tasks. The ViewModel turns them into a <code>TodoUiState</code>, and the UI draws it.</li>
+  <li><strong>Events flow down.</strong> When the user taps something, the UI calls a ViewModel function, which updates the repository.</li>
+</ul>
+<p>The UI never changes the data directly. There is exactly one place where tasks are changed, which makes the app easier to reason about and to test.</p>
+
+<h3>Files you'll create</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>File</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>data/Todo.kt</code></td><td>The <code>Todo</code> data model, moved out of the UI.</td></tr>
+    <tr><td><code>data/TodoRepository.kt</code></td><td>Stores the tasks and exposes them as a <code>StateFlow</code>.</td></tr>
+    <tr><td><code>ui/TodoUiState.kt</code></td><td>An immutable snapshot of what the screen shows.</td></tr>
+    <tr><td><code>ui/TodoViewModel.kt</code></td><td>Connects the repository to the UI and handles events.</td></tr>
+    <tr><td><code>ui/TodoScreen.kt</code></td><td><em>Modified:</em> split into a stateful and a stateless composable.</td></tr>
+  </tbody>
+</table></div>
+</section>
+
+<section class="step" id="step-4" data-title="Add the dependencies" data-minutes="3" hidden>
+<h2><span class="step-num">4.</span> Add the dependencies</h2>
+<p>You need two Jetpack Lifecycle libraries:</p>
+<ul>
+  <li><code>lifecycle-viewmodel-compose</code> provides the <code>viewModel()</code> function to get a ViewModel from a composable.</li>
+  <li><code>lifecycle-runtime-compose</code> provides <code>collectAsStateWithLifecycle()</code> to read a <code>Flow</code> from Compose.</li>
+</ul>
+<p>The project uses a <strong>version catalog</strong>. First declare the libraries in <code>gradle/libs.versions.toml</code>. They reuse the existing <code>androidxLifecycle</code> version:</p>
+<figure class="code"><figcaption><span class="code-file">gradle/libs.versions.toml</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-toml" data-hl="4,5">[libraries]
+# ...
+androidx-lifecycle-runtime-ktx = { module = &quot;androidx.lifecycle:lifecycle-runtime-ktx&quot;, version.ref = &quot;androidxLifecycle&quot; }
+androidx-lifecycle-runtime-compose = { module = &quot;androidx.lifecycle:lifecycle-runtime-compose&quot;, version.ref = &quot;androidxLifecycle&quot; }
+androidx-lifecycle-viewmodel-compose = { module = &quot;androidx.lifecycle:lifecycle-viewmodel-compose&quot;, version.ref = &quot;androidxLifecycle&quot; }</code></pre></figure>
+<p>Then add them to the <code>dependencies</code> block in <code>app/build.gradle.kts</code>:</p>
+<figure class="code"><figcaption><span class="code-file">app/build.gradle.kts</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin" data-hl="5,6,7">dependencies {
+  // ...
+  implementation(libs.androidx.activity.compose)
+
+  // ViewModel and lifecycle-aware state collection for Compose
+  implementation(libs.androidx.lifecycle.viewmodel.compose)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  // ...
+}</code></pre></figure>
+<p>Click <strong>Sync Now</strong> in the bar that appears at the top of the editor.</p>
+<div class="callout tip">Highlighted lines in code blocks are the ones you need to add or change.</div>
+</section>
+
+<section class="step" id="step-5" data-title="Move the data model" data-minutes="2" hidden>
+<h2><span class="step-num">5.</span> Move the data model</h2>
+<p>A <code>Todo</code> describes your app's data, not the UI, so it belongs in its own <strong>data</strong> package.</p>
+<ol class="tasks">
+  <li>In the <strong>Project</strong> window, right-click the <code>com.example.todoviewmodel</code> package and select <strong>New &gt; Package</strong>. Name it <code>data</code>.</li>
+  <li>Right-click the new <code>data</code> package and select <strong>New &gt; Kotlin Class/File</strong>. Choose <strong>File</strong> and name it <code>Todo</code>.</li>
+  <li>Paste the following code:</li>
+</ol>
+<figure class="code"><figcaption><span class="code-file">data/Todo.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin">package com.example.todoviewmodel.data
+
+data class Todo(
+  val id: Long,
+  val title: String,
+  val isDone: Boolean = false,
+)</code></pre></figure>
+<p>Now open <code>ui/TodoScreen.kt</code>. Delete the old <code>data class Todo</code> and import the new one instead:</p>
+<figure class="code"><figcaption><span class="code-file">ui/TodoScreen.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin" data-hl="2">import com.example.todoviewmodel.R
+import com.example.todoviewmodel.data.Todo
+import com.example.todoviewmodel.theme.TODOViewModelTheme</code></pre></figure>
+<p>Run the app to make sure everything still compiles. It behaves exactly as before.</p>
+</section>
+
+<section class="step" id="step-6" data-title="Create the repository" data-minutes="5" hidden>
+<h2><span class="step-num">6.</span> Create the repository</h2>
+<p>The repository is the <strong>single source of truth</strong> for the tasks. It's the only class that stores and changes them. Everything else reads them through it.</p>
+<p>Create a new file <code>TodoRepository.kt</code> in the <code>data</code> package:</p>
+<figure class="code"><figcaption><span class="code-file">data/TodoRepository.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin">package com.example.todoviewmodel.data
+
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
+/**
+ * Single source of truth for the list of TODOs.
+ *
+ * The data is kept in memory. Because only this class knows how the data is stored,
+ * it can later be backed by a database (for example Room) without changing the UI.
+ */
+class TodoRepository {
+
+  private val _todos = MutableStateFlow&lt;List&lt;Todo&gt;&gt;(emptyList())
+  val todos: StateFlow&lt;List&lt;Todo&gt;&gt; = _todos.asStateFlow()
+
+  private var nextId = 0L
+
+  fun addTodo(title: String) {
+    _todos.update { todos -&gt; todos + Todo(id = nextId++, title = title) }
+  }
+
+  fun toggleTodo(id: Long) {
+    _todos.update { todos -&gt;
+      todos.map { todo -&gt; if (todo.id == id) todo.copy(isDone = !todo.isDone) else todo }
+    }
+  }
+
+  fun deleteTodo(id: Long) {
+    _todos.update { todos -&gt; todos.filterNot { it.id == id } }
+  }
+}</code></pre></figure>
+
+<h3>How it works</h3>
+<dl class="explain">
+  <dt><code>MutableStateFlow</code> and <code>StateFlow</code></dt>
+  <dd>A <code>StateFlow</code> always holds a current value and notifies its collectors whenever the value changes. The <code>Mutable</code> version can be changed, so it's kept <code>private</code>. Other classes get a read-only <code>StateFlow</code> through <code>asStateFlow()</code>. This is called a <em>backing property</em>, which is why the private one starts with an underscore.</dd>
+  <dt><code>_todos.update { ... }</code></dt>
+  <dd>Computes the new value from the current one and replaces it safely, even if several updates happen at the same time.</dd>
+  <dt>Immutable lists</dt>
+  <dd>The repository never mutates a list. <code>todos + newTodo</code>, <code>map</code> and <code>filterNot</code> all return a <em>new</em> list. A <code>StateFlow</code> only emits when the new value is different from the old one, so creating new lists is what makes the change visible.</dd>
+  <dt><code>nextId</code></dt>
+  <dd>Generating ids is data logic, so it moves from the UI to the repository.</dd>
+</dl>
+<div class="callout note">The tasks are still kept in memory. Because only the repository knows <em>how</em> they are stored, you could later back it with a database (for example, Room) without changing a single line of UI code.</div>
+</section>
+
+<section class="step" id="step-7" data-title="Create the UI state class" data-minutes="3" hidden>
+<h2><span class="step-num">7.</span> Create the UI state class</h2>
+<p>A <strong>UI state</strong> class describes everything the screen needs to draw itself, in one immutable object. Instead of reading several separate variables, the UI receives a single <code>TodoUiState</code> and draws it.</p>
+<p>Create <code>TodoUiState.kt</code> in the <code>ui</code> package:</p>
+<figure class="code"><figcaption><span class="code-file">ui/TodoUiState.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin">package com.example.todoviewmodel.ui
+
+import com.example.todoviewmodel.data.Todo
+
+/** Everything the TODO screen needs to draw itself. */
+data class TodoUiState(
+  val todos: List&lt;Todo&gt; = emptyList(),
+) {
+  val remainingCount: Int
+    get() = todos.count { !it.isDone }
+
+  val isEmpty: Boolean
+    get() = todos.isEmpty()
+}</code></pre></figure>
+<h3>Why a separate class?</h3>
+<ul>
+  <li><strong>One snapshot.</strong> The screen always draws a consistent state. It can't see an updated list with an outdated counter.</li>
+  <li><strong>Derived values live in one place.</strong> <code>remainingCount</code> and <code>isEmpty</code> are computed from <code>todos</code>, so they can never get out of sync. Before, this logic was mixed into the composable.</li>
+  <li><strong>Easy to fake.</strong> Previews and tests can create any state they want, for example <code>TodoUiState(todos = listOf(...))</code>.</li>
+</ul>
+<div class="callout tip">Use <code>val</code> for every property and a <code>data class</code>, so the state is immutable and two states with the same content are equal.</div>
+</section>
+
+<section class="step" id="step-8" data-title="Create the ViewModel" data-minutes="6" hidden>
+<h2><span class="step-num">8.</span> Create the ViewModel</h2>
+<p>A <code>ViewModel</code> is a state holder that <strong>survives configuration changes</strong>. When the <code>Activity</code> is recreated after a rotation, the new <code>Activity</code> receives the <em>same</em> ViewModel instance, together with all of its data. The ViewModel is only cleared when the screen is finished for good, for example when the user presses back to leave it.</p>
+<p>Create <code>TodoViewModel.kt</code> in the <code>ui</code> package:</p>
+<figure class="code"><figcaption><span class="code-file">ui/TodoViewModel.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin">package com.example.todoviewmodel.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.todoviewmodel.data.TodoRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+
+class TodoViewModel(
+  private val repository: TodoRepository = TodoRepository(),
+) : ViewModel() {
+
+  val uiState: StateFlow&lt;TodoUiState&gt; =
+    repository.todos
+      .map { todos -&gt; TodoUiState(todos = todos) }
+      .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = TodoUiState(),
+      )
+
+  fun addTodo(title: String) {
+    if (title.isBlank()) return
+    repository.addTodo(title.trim())
+  }
+
+  fun toggleTodo(id: Long) {
+    repository.toggleTodo(id)
+  }
+
+  fun deleteTodo(id: Long) {
+    repository.deleteTodo(id)
+  }
+}</code></pre></figure>
+
+<h3>How it works</h3>
+<dl class="explain">
+  <dt><code>repository: TodoRepository = TodoRepository()</code></dt>
+  <dd>The ViewModel receives the repository through its constructor. The default value means the app can create the ViewModel without arguments, while tests can still pass in their own repository.</dd>
+  <dt><code>map { todos -&gt; TodoUiState(todos = todos) }</code></dt>
+  <dd>Every time the repository emits a new list, it's turned into a new <code>TodoUiState</code>.</dd>
+  <dt><code>stateIn(...)</code></dt>
+  <dd>Converts that flow into a <code>StateFlow</code> the UI can read:
+    <ul>
+      <li><code>viewModelScope</code> ties the work to the ViewModel's lifetime and cancels it automatically when the ViewModel is cleared.</li>
+      <li><code>SharingStarted.WhileSubscribed(5_000)</code> keeps the flow active while the UI is collecting it, plus 5 seconds afterwards. A rotation takes less than that, so nothing restarts. If the app stays in the background, the work stops.</li>
+      <li><code>initialValue</code> is what the UI sees before the first value arrives.</li>
+    </ul>
+  </dd>
+  <dt><code>addTodo</code>, <code>toggleTodo</code>, <code>deleteTodo</code></dt>
+  <dd>These are the <strong>events</strong> the UI can send. Notice that the rules about blank and untrimmed titles moved here from the composable. That logic is now plain Kotlin that you can test.</dd>
+</dl>
+<div class="callout warn"><strong>Never keep a reference to an <code>Activity</code>, a <code>Context</code> or a <code>View</code> inside a ViewModel.</strong> The ViewModel lives longer than they do, so it would keep the old, destroyed <code>Activity</code> in memory.</div>
+</section>
+
+<section class="step" id="step-9" data-title="Connect the UI to the ViewModel" data-minutes="8" hidden>
+<h2><span class="step-num">9.</span> Connect the UI to the ViewModel</h2>
+<p>Now update the UI. You'll split <code>TodoScreen</code> into two composables:</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Composable</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td><code>TodoScreen</code></td><td><strong>Stateful.</strong> Gets the ViewModel, collects its state and passes events to it.</td></tr>
+    <tr><td><code>TodoContent</code></td><td><strong>Stateless.</strong> Receives a <code>TodoUiState</code> and lambdas for each event. It doesn't know a ViewModel exists.</td></tr>
+  </tbody>
+</table></div>
+<p>Replace the contents of <code>ui/TodoScreen.kt</code> with the following. Highlighted lines are new or changed:</p>
+<figure class="code"><figcaption><span class="code-file">ui/TodoScreen.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin" data-hl="25,34,35,40,42,43,44,45,46,48,49,50,51,52,53,54,55,57,58,59,60,61,62,63,64,65,66,67,68,70,71,78,95,98,105,114,121,130,145,146,147,148,151,152,153,154,155,156,157,158,159,160,161,162,163">package com.example.todoviewmodel.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.todoviewmodel.R
+import com.example.todoviewmodel.data.Todo
+import com.example.todoviewmodel.theme.TODOViewModelTheme
+
+/** Stateful screen: connects the ViewModel to the UI. */
+@Composable
+fun TodoScreen(
+  modifier: Modifier = Modifier,
+  viewModel: TodoViewModel = viewModel(),
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+  TodoContent(
+    uiState = uiState,
+    onAddTodo = viewModel::addTodo,
+    onToggleTodo = viewModel::toggleTodo,
+    onDeleteTodo = viewModel::deleteTodo,
+    modifier = modifier,
+  )
+}
+
+/** Stateless UI: draws [uiState] and reports user events through callbacks. */
+@Composable
+fun TodoContent(
+  uiState: TodoUiState,
+  onAddTodo: (String) -&gt; Unit,
+  onToggleTodo: (Long) -&gt; Unit,
+  onDeleteTodo: (Long) -&gt; Unit,
+  modifier: Modifier = Modifier,
+) {
+  // The text being typed is UI element state, so it stays in the UI.
+  // rememberSaveable keeps it across configuration changes.
+  var newTodoText by rememberSaveable { mutableStateOf(&quot;&quot;) }
+
+  fun submit() {
+    onAddTodo(newTodoText)
+    newTodoText = &quot;&quot;
+  }
+
+  Column(modifier = modifier.fillMaxSize()) {
+    Text(text = &quot;My tasks&quot;, style = MaterialTheme.typography.headlineMedium)
+    Text(
+      text = if (uiState.isEmpty) &quot;Nothing to do yet&quot; else &quot;${uiState.remainingCount} of ${uiState.todos.size} remaining&quot;,
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      OutlinedTextField(
+        value = newTodoText,
+        onValueChange = { newTodoText = it },
+        label = { Text(&quot;New task&quot;) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { submit() }),
+        modifier = Modifier.weight(1f),
+      )
+      Button(onClick = { submit() }, enabled = newTodoText.isNotBlank()) {
+        Text(&quot;Add&quot;)
+      }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    if (uiState.isEmpty) {
+      Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+          text = &quot;Add your first task above&quot;,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+    } else {
+      LazyColumn {
+        items(uiState.todos, key = { it.id }) { todo -&gt;
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            Checkbox(
+              checked = todo.isDone,
+              onCheckedChange = { onToggleTodo(todo.id) },
+            )
+            Text(
+              text = todo.title,
+              style = MaterialTheme.typography.bodyLarge,
+              textDecoration = if (todo.isDone) TextDecoration.LineThrough else null,
+              color = if (todo.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { onDeleteTodo(todo.id) }) {
+              Icon(
+                painter = painterResource(R.drawable.ic_delete),
+                contentDescription = &quot;Delete ${todo.title}&quot;,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun TodoContentEmptyPreview() {
+  TODOViewModelTheme {
+    TodoContent(uiState = TodoUiState(), onAddTodo = {}, onToggleTodo = {}, onDeleteTodo = {})
+  }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun TodoContentPreview() {
+  val todos =
+    listOf(
+      Todo(id = 1, title = &quot;Buy milk&quot;, isDone = true),
+      Todo(id = 2, title = &quot;Walk the dog&quot;),
+      Todo(id = 3, title = &quot;Study ViewModel&quot;),
+    )
+  TODOViewModelTheme {
+    TodoContent(uiState = TodoUiState(todos = todos), onAddTodo = {}, onToggleTodo = {}, onDeleteTodo = {})
+  }
+}</code></pre></figure>
+
+<h3>What changed?</h3>
+<dl class="explain">
+  <dt><code>viewModel: TodoViewModel = viewModel()</code></dt>
+  <dd><code>viewModel()</code> returns the existing ViewModel for this screen, or creates one the first time. After a rotation, it returns the same instance.</dd>
+  <dt><code>collectAsStateWithLifecycle()</code></dt>
+  <dd>Reads the <code>StateFlow</code> as Compose <code>State</code>, so the UI recomposes whenever a new <code>TodoUiState</code> is emitted. It also stops collecting while the app is in the background.</dd>
+  <dt><code>onAddTodo = viewModel::addTodo</code></dt>
+  <dd>A function reference. When <code>TodoContent</code> calls <code>onAddTodo("Buy milk")</code>, the ViewModel's <code>addTodo</code> runs. The UI only reports what happened. It doesn't decide what to do about it.</dd>
+  <dt><code>rememberSaveable</code> for the text field</dt>
+  <dd>The text being typed is <strong>UI element state</strong>: it only matters to this screen while it is visible, and no business logic depends on it. It's fine to keep it in the UI, and <code>rememberSaveable</code> makes it survive configuration changes. The tasks are <strong>app data</strong>, so they live in the repository.</dd>
+  <dt>Two previews</dt>
+  <dd>Because <code>TodoContent</code> is stateless, the previews can show both an empty list and a list with completed tasks, without running any logic.</dd>
+</dl>
+<div class="callout note"><code>MainActivity</code> doesn't need to change. It still calls <code>TodoScreen(modifier = ...)</code>, and the ViewModel parameter uses its default value.</div>
+</section>
+
+<section class="step" id="step-10" data-title="Run and verify" data-minutes="3" hidden>
+<h2><span class="step-num">10.</span> Run and verify</h2>
+<p>Run the app and repeat the experiment from the beginning. Check each item as you go:</p>
+<ul class="checklist" data-checklist="verify">
+  <li><label><input type="checkbox"> Add three tasks.</label></li>
+  <li><label><input type="checkbox"> Mark one task as done. The counter updates.</label></li>
+  <li><label><input type="checkbox"> Type some text in <strong>New task</strong> without adding it.</label></li>
+  <li><label><input type="checkbox"> Rotate the device.</label></li>
+  <li><label><input type="checkbox"> The tasks, the completed checkbox and the typed text are still there.</label></li>
+  <li><label><input type="checkbox"> Delete a task. It disappears.</label></li>
+  <li><label><input type="checkbox"> Open <code>ui/TodoScreen.kt</code> in <strong>Split</strong> view and check that both previews render.</label></li>
+</ul>
+<p class="checklist-done" hidden>Everything works.</p>
+
+<h3>What happened during rotation?</h3>
+<ol>
+  <li>Android destroyed the <code>Activity</code> and created a new one.</li>
+  <li>The new composition called <code>viewModel()</code>, which returned the <em>existing</em> <code>TodoViewModel</code>.</li>
+  <li><code>collectAsStateWithLifecycle()</code> immediately received the current <code>TodoUiState</code>, so the list was drawn again.</li>
+  <li><code>rememberSaveable</code> restored the typed text from the saved instance state.</li>
+</ol>
+<div class="callout warn"><strong>Still kept in memory.</strong> If the user leaves the screen with back, or the system kills the app's process in the background, the tasks are lost. Fixing that means storing them on disk, for example with Room. Thanks to the repository, that's a data-layer change only.</div>
+</section>
+
+<section class="step" id="step-11" data-title="Unit test the ViewModel" data-minutes="8" hidden>
+<h2><span class="step-num">11.</span> Unit test the ViewModel</h2>
+<p>The logic now lives in plain Kotlin classes, so you can test it with fast <strong>local unit tests</strong> that run on your computer, without an emulator.</p>
+
+<h3>Add the coroutines test library</h3>
+<figure class="code"><figcaption><span class="code-file">gradle/libs.versions.toml</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-toml" data-hl="3,9">[versions]
+# ...
+coroutines = &quot;1.10.2&quot;
+junit = &quot;4.13.2&quot;
+
+[libraries]
+# ...
+junit = { module = &quot;junit:junit&quot;, version.ref = &quot;junit&quot; }
+kotlinx-coroutines-test = { module = &quot;org.jetbrains.kotlinx:kotlinx-coroutines-test&quot;, version.ref = &quot;coroutines&quot; }</code></pre></figure><figure class="code"><figcaption><span class="code-file">app/build.gradle.kts</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin" data-hl="3">  // Local tests
+  testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)</code></pre></figure>
+<p>Sync Gradle.</p>
+
+<h3>Replace the Main dispatcher</h3>
+<p><code>viewModelScope</code> runs on <code>Dispatchers.Main</code>, which only exists on Android. In a local test you have to replace it with a test dispatcher. A JUnit rule does that for every test.</p>
+<p>In the <strong>Project</strong> window, switch to the <strong>Project</strong> view and create the folders <code>app/src/test/java/com/example/todoviewmodel/ui</code>. Then add:</p>
+<figure class="code"><figcaption><span class="code-file">app/src/test/java/com/example/todoviewmodel/ui/MainDispatcherRule.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin">package com.example.todoviewmodel.ui
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
+
+/**
+ * viewModelScope runs on Dispatchers.Main, which does not exist in local unit tests.
+ * This rule replaces it with a test dispatcher for the duration of each test.
+ */
+class MainDispatcherRule(
+  private val testDispatcher: TestDispatcher = UnconfinedTestDispatcher(),
+) : TestWatcher() {
+  override fun starting(description: Description) {
+    Dispatchers.setMain(testDispatcher)
+  }
+
+  override fun finished(description: Description) {
+    Dispatchers.resetMain()
+  }
+}</code></pre></figure>
+
+<h3>Write the tests</h3>
+<figure class="code"><figcaption><span class="code-file">app/src/test/java/com/example/todoviewmodel/ui/TodoViewModelTest.kt</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-kotlin">package com.example.todoviewmodel.ui
+
+import com.example.todoviewmodel.data.TodoRepository
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+
+class TodoViewModelTest {
+
+  @get:Rule val mainDispatcherRule = MainDispatcherRule()
+
+  private lateinit var viewModel: TodoViewModel
+
+  // Create the ViewModel in @Before so it is built after MainDispatcherRule has replaced Dispatchers.Main.
+  @Before
+  fun setUp() {
+    viewModel = TodoViewModel(TodoRepository())
+  }
+
+  // uiState uses WhileSubscribed, so it only updates while someone is collecting it.
+  private fun TestScope.collectUiState() {
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+  }
+
+  @Test
+  fun initialState_isEmpty() = runTest {
+    collectUiState()
+
+    assertTrue(viewModel.uiState.value.isEmpty)
+  }
+
+  @Test
+  fun addTodo_addsTodoToTheList() = runTest {
+    collectUiState()
+
+    viewModel.addTodo(&quot;Buy milk&quot;)
+
+    val todos = viewModel.uiState.value.todos
+    assertEquals(1, todos.size)
+    assertEquals(&quot;Buy milk&quot;, todos.first().title)
+  }
+
+  @Test
+  fun addTodo_withBlankTitle_isIgnored() = runTest {
+    collectUiState()
+
+    viewModel.addTodo(&quot;   &quot;)
+
+    assertTrue(viewModel.uiState.value.isEmpty)
+  }
+
+  @Test
+  fun toggleTodo_updatesRemainingCount() = runTest {
+    collectUiState()
+    viewModel.addTodo(&quot;Buy milk&quot;)
+    viewModel.addTodo(&quot;Walk the dog&quot;)
+
+    viewModel.toggleTodo(viewModel.uiState.value.todos.first().id)
+
+    assertEquals(1, viewModel.uiState.value.remainingCount)
+  }
+
+  @Test
+  fun deleteTodo_removesTodoFromTheList() = runTest {
+    collectUiState()
+    viewModel.addTodo(&quot;Buy milk&quot;)
+
+    viewModel.deleteTodo(viewModel.uiState.value.todos.first().id)
+
+    assertTrue(viewModel.uiState.value.isEmpty)
+  }
+}</code></pre></figure>
+<dl class="explain">
+  <dt>The ViewModel is created in <code>@Before</code></dt>
+  <dd>JUnit runs <code>@Before</code> after the rule has replaced <code>Dispatchers.Main</code>. If you created the ViewModel in a property initializer, it would be built too early, and <code>uiState</code> would never update.</dd>
+  <dt><code>collectUiState()</code></dt>
+  <dd><code>uiState</code> uses <code>WhileSubscribed</code>, so it only updates while someone collects it. In the app, the UI collects it. In a test, a coroutine in <code>backgroundScope</code> does, and it's cancelled automatically when the test ends.</dd>
+  <dt>Arrange, act, assert</dt>
+  <dd>Each test prepares the ViewModel, sends one event, then checks the resulting <code>TodoUiState</code>. The tests only use the ViewModel's public API, the same one the UI uses.</dd>
+</dl>
+
+<h3>Run the tests</h3>
+<p>Click the green arrow next to <code>class TodoViewModelTest</code>, or run:</p>
+<figure class="code"><figcaption><span class="code-file">Terminal</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-bash">./gradlew test</code></pre></figure>
+<p>All five tests should pass.</p>
+</section>
+
+<section class="step" id="step-12" data-title="Congratulations" data-minutes="2" hidden>
+<h2><span class="step-num">12.</span> Congratulations</h2>
+<p>You restructured the TODO app using recommended Android architecture:</p>
+<ul>
+  <li>A <strong>repository</strong> is the single source of truth for the data.</li>
+  <li>A <strong>UI state</strong> class describes the screen in one immutable object.</li>
+  <li>A <strong>ViewModel</strong> survives configuration changes, owns the screen's logic and exposes state as a <code>StateFlow</code>.</li>
+  <li>A <strong>stateless composable</strong> only draws state and reports events, which makes it easy to preview.</li>
+  <li><strong>Unit tests</strong> check the logic without a device.</li>
+</ul>
+
+<h3>Compare with the solution</h3>
+<p>The <a href="https://github.com/franzueto/TODOViewModel/tree/viewmodel-solution" target="_blank" rel="noopener"><code>viewmodel-solution</code></a> branch contains the finished code. Compare it with your work locally:</p>
+<figure class="code"><figcaption><span class="code-file">Terminal</span><button class="copy" type="button" aria-label="Copy code">Copy</button></figcaption><pre><code class="lang-bash">git fetch origin viewmodel-solution
+git diff origin/viewmodel-solution -- app</code></pre></figure>
+<p>Or see every change on GitHub: <a href="https://github.com/franzueto/TODOViewModel/compare/main...viewmodel-solution" target="_blank" rel="noopener">compare main with viewmodel-solution</a>.</p>
+
+<h3>Practice</h3>
+<p>Try adding new features by following the same flow, data layer first and UI last:</p>
+<ol>
+  <li><strong>Clear completed.</strong> Add <code>clearCompleted()</code> to the repository and the ViewModel, a <code>hasCompleted</code> property to <code>TodoUiState</code>, and a button that is only visible when <code>hasCompleted</code> is <code>true</code>. Write a test for it.</li>
+  <li><strong>Filter.</strong> Let the user show <em>All</em>, <em>Active</em> or <em>Completed</em> tasks. Where should the selected filter live? Should the filtering happen in the repository or in the ViewModel?</li>
+  <li><strong>Persist the tasks.</strong> Back <code>TodoRepository</code> with a Room database so that tasks survive the app being closed. The UI and the ViewModel shouldn't need to change.</li>
+</ol>
+
+<h3>Learn more</h3>
+<ul class="links">
+  <li><a href="https://developer.android.com/topic/libraries/architecture/viewmodel" target="_blank" rel="noopener">ViewModel overview</a></li>
+  <li><a href="https://developer.android.com/topic/architecture/ui-layer/stateholders" target="_blank" rel="noopener">State holders and UI state</a></li>
+  <li><a href="https://developer.android.com/topic/architecture/data-layer" target="_blank" rel="noopener">The data layer</a></li>
+  <li><a href="https://developer.android.com/develop/ui/compose/state" target="_blank" rel="noopener">State and Jetpack Compose</a></li>
+  <li><a href="https://developer.android.com/kotlin/flow/test" target="_blank" rel="noopener">Testing Kotlin flows on Android</a></li>
+</ul>
+</section>
+    </article>
+    <div class="pager">
+      <button id="prev" type="button">Back</button>
+      <button id="next" type="button">Next</button>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- small storage helpers (storage can be unavailable) ----------
+  var STORE_KEY = "todo-viewmodel-codelab";
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function save(data) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+  var store = load();
+  store.visited = store.visited || [];
+  store.checks = store.checks || {};
+
+  // ---------- syntax highlighting ----------
+  var RULES = {
+    kotlin: {
+      re: /(\/\*[\s\S]*?\*\/|\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*")|(@[A-Za-z_]\w*)|\b(package|import|class|data|object|interface|fun|val|var|private|internal|override|return|if|else|when|for|in|is|true|false|null|this|lateinit|by|get)\b|\b(\d[\d_]*L?)\b|\b([A-Z]\w*)\b/g,
+      classes: ["c", "s", "a", "k", "n", "t"]
+    },
+    toml: {
+      re: /(#[^\n]*)|("(?:[^"\\\n]|\\.)*")|(^\[[^\]\n]+\])|(^[\w.-]+)(?=\s*=)/gm,
+      classes: ["c", "s", "k", "t"]
+    },
+    bash: {
+      re: /(#[^\n]*)|("(?:[^"\\\n]|\\.)*"|'[^'\n]*')|(^(?:git|cd|\.\/gradlew)\b)/gm,
+      classes: ["c", "s", "k"]
+    }
+  };
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function tokenize(text, lang) {
+    var rule = RULES[lang];
+    var tokens = [];
+    if (!rule) return [{ cls: null, text: text }];
+    var re = new RegExp(rule.re.source, rule.re.flags);
+    var last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      if (m[0] === "") { re.lastIndex++; continue; }
+      if (m.index > last) tokens.push({ cls: null, text: text.slice(last, m.index) });
+      var cls = null;
+      for (var g = 1; g < m.length; g++) {
+        if (m[g] !== undefined) { cls = rule.classes[g - 1]; break; }
+      }
+      tokens.push({ cls: cls, text: m[0] });
+      last = re.lastIndex;
+    }
+    if (last < text.length) tokens.push({ cls: null, text: text.slice(last) });
+    return tokens;
+  }
+
+  function highlight(codeEl) {
+    var text = codeEl.textContent;
+    var lang = (codeEl.className.match(/lang-(\w+)/) || [])[1];
+    var marked = {};
+    (codeEl.getAttribute("data-hl") || "").split(",").forEach(function (n) { if (n) marked[n] = true; });
+
+    var lines = [""];
+    tokenize(text, lang).forEach(function (tok) {
+      tok.text.split("\n").forEach(function (piece, i) {
+        if (i > 0) lines.push("");
+        if (piece) {
+          var safe = escapeHtml(piece);
+          lines[lines.length - 1] += tok.cls ? '<span class="tk-' + tok.cls + '">' + safe + "</span>" : safe;
+        }
+      });
+    });
+    codeEl.innerHTML = lines.map(function (html, i) {
+      return '<span class="line' + (marked[i + 1] ? " hl" : "") + '">' + (html || " ") + "</span>";
+    }).join("");
+    codeEl.setAttribute("data-source", text);
+    codeEl.classList.add("ready");
+  }
+
+  document.querySelectorAll("pre code").forEach(highlight);
+
+  // ---------- copy buttons ----------
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy") ? resolve() : reject(); } catch (e) { reject(e); }
+      document.body.removeChild(ta);
+    });
+  }
+
+  document.querySelectorAll("figure.code").forEach(function (fig) {
+    var btn = fig.querySelector(".copy");
+    var codeEl = fig.querySelector("code");
+    btn.addEventListener("click", function () {
+      copyText(codeEl.getAttribute("data-source") || codeEl.textContent).then(function () {
+        btn.textContent = "Copied";
+        btn.classList.add("done");
+        setTimeout(function () { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1500);
+      }, function () {
+        btn.textContent = "Press Ctrl+C";
+      });
+    });
+  });
+
+  // ---------- checklists ----------
+  document.querySelectorAll("[data-checklist]").forEach(function (list) {
+    var id = list.getAttribute("data-checklist");
+    var boxes = list.querySelectorAll("input[type=checkbox]");
+    var doneMsg = list.nextElementSibling && list.nextElementSibling.classList.contains("checklist-done") ? list.nextElementSibling : null;
+    var saved = store.checks[id] || [];
+    function refresh() {
+      var all = true;
+      boxes.forEach(function (b) { if (!b.checked) all = false; });
+      if (doneMsg) doneMsg.hidden = !all;
+    }
+    boxes.forEach(function (box, i) {
+      box.checked = !!saved[i];
+      box.addEventListener("change", function () {
+        store.checks[id] = Array.prototype.map.call(boxes, function (b) { return b.checked; });
+        save(store);
+        refresh();
+      });
+    });
+    refresh();
+  });
+
+  // ---------- step navigation ----------
+  var steps = Array.prototype.slice.call(document.querySelectorAll("section.step"));
+  var list = document.getElementById("step-list");
+  var prevBtn = document.getElementById("prev");
+  var nextBtn = document.getElementById("next");
+  var bar = document.getElementById("progress-bar");
+  var timeLeft = document.getElementById("time-left");
+  var sidebar = document.getElementById("sidebar");
+  var menuBtn = document.getElementById("menu-btn");
+  var links = [];
+  var current = -1;
+
+  steps.forEach(function (s, i) {
+    var li = document.createElement("li");
+    var a = document.createElement("a");
+    a.href = "#step-" + (i + 1);
+    a.innerHTML = '<span class="n">' + (i + 1) + "</span><span></span>";
+    a.lastChild.textContent = s.getAttribute("data-title");
+    a.addEventListener("click", closeMenu);
+    li.appendChild(a);
+    list.appendChild(li);
+    links.push(a);
+  });
+
+  function indexFromHash() {
+    var m = location.hash.match(/^#step-(\d+)$/);
+    if (!m) return -1;
+    var i = parseInt(m[1], 10) - 1;
+    return i >= 0 && i < steps.length ? i : -1;
+  }
+
+  function show(i, focus) {
+    i = Math.max(0, Math.min(steps.length - 1, i));
+    var changed = i !== current;
+    current = i;
+    steps.forEach(function (s, j) { s.hidden = j !== i; });
+    if (store.visited.indexOf(i) === -1) store.visited.push(i);
+    links.forEach(function (a, j) {
+      if (j === i) a.setAttribute("aria-current", "step"); else a.removeAttribute("aria-current");
+      a.classList.toggle("visited", store.visited.indexOf(j) !== -1 && j !== i);
+    });
+    prevBtn.disabled = i === 0;
+    nextBtn.textContent = i === steps.length - 1 ? "Done" : "Next";
+    bar.style.width = ((i + 1) / steps.length * 100) + "%";
+    var minutes = 0;
+    for (var k = i; k < steps.length; k++) minutes += parseInt(steps[k].getAttribute("data-minutes"), 10) || 0;
+    timeLeft.textContent = minutes + " min remaining";
+    document.title = steps[i].getAttribute("data-title") + " · TODO ViewModel Codelab";
+    store.step = i;
+    save(store);
+    if (changed) {
+      window.scrollTo(0, 0);
+      if (focus) {
+        var h = steps[i].querySelector("h2");
+        h.setAttribute("tabindex", "-1");
+        h.focus({ preventScroll: true });
+      }
+    }
+  }
+
+  function go(i) {
+    i = Math.max(0, Math.min(steps.length - 1, i));
+    if (location.hash !== "#step-" + (i + 1)) location.hash = "step-" + (i + 1);
+    else show(i, true);
+  }
+
+  window.addEventListener("hashchange", function () {
+    var i = indexFromHash();
+    if (i !== -1) show(i, true);
+  });
+
+  prevBtn.addEventListener("click", function () { go(current - 1); });
+  nextBtn.addEventListener("click", function () {
+    if (current === steps.length - 1) { go(0); return; }
+    go(current + 1);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === "ArrowRight") go(current + 1);
+    else if (e.key === "ArrowLeft") go(current - 1);
+    else if (e.key === "Escape") closeMenu();
+  });
+
+  // ---------- mobile menu ----------
+  var scrim = null;
+  function openMenu() {
+    sidebar.classList.add("open");
+    menuBtn.setAttribute("aria-expanded", "true");
+    scrim = document.createElement("div");
+    scrim.className = "scrim";
+    scrim.addEventListener("click", closeMenu);
+    document.body.appendChild(scrim);
+  }
+  function closeMenu() {
+    sidebar.classList.remove("open");
+    menuBtn.setAttribute("aria-expanded", "false");
+    if (scrim) { scrim.remove(); scrim = null; }
+  }
+  menuBtn.addEventListener("click", function () {
+    sidebar.classList.contains("open") ? closeMenu() : openMenu();
+  });
+
+  var start = indexFromHash();
+  if (start === -1) start = typeof store.step === "number" ? store.step : 0;
+  show(start, false);
+})();
+</script>
+</body>
+</html>
