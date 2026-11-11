@@ -1,3 +1,56 @@
+# Codelab: TODO con ViewModel y State
+
+Entrega mediante README (opción A). Repositorio de entrega: [macusmarroquin93/TODOViewModel](https://github.com/macusmarroquin93/TODOViewModel). Proyecto base: [franzueto/TODOViewModel](https://github.com/franzueto/TODOViewModel). Guía seguida: [Improve the TODO app with ViewModel and State](codelab/index.html).
+
+## Trabajo realizado
+
+Se refactorizó la aplicación de tareas de Kotlin y Jetpack Compose siguiendo los pasos 4 al 11 de la guía. La aplicación permite agregar tareas, marcarlas como completadas, eliminarlas y consultar cuántas quedan pendientes.
+
+- `data/Todo.kt`: modelo inmutable de una tarea.
+- `data/TodoRepository.kt`: almacena la lista en memoria y la expone mediante un `StateFlow` de solo lectura.
+- `ui/TodoUiState.kt`: estado de pantalla con lista, contador de pendientes e indicador de lista vacía.
+- `ui/TodoViewModel.kt`: valida títulos, elimina espacios y procesa los eventos; convierte los datos en estado de UI usando `stateIn` y `viewModelScope`.
+- `ui/TodoScreen.kt`: recoge el estado con `collectAsStateWithLifecycle` y conecta los eventos a `TodoContent`. Incluye previews vacía y con tareas.
+
+Los conceptos practicados son separación de responsabilidades, flujo unidireccional de datos, listas inmutables, `StateFlow`, ciclo de vida, estado derivado y pruebas locales con coroutines.
+
+## Problema y solución
+
+Antes, la lista estaba dentro del composable con `remember`: al recrear la Activity se perdían las tareas. Ahora el repositorio pertenece al ViewModel, que conserva su instancia durante cambios de configuración. El texto que todavía no se agrega se conserva con `rememberSaveable`.
+
+Las tareas siguen en memoria: no se garantiza conservarlas al terminar la pantalla o morir el proceso. Este codelab no incluye una base de datos.
+
+## Verificación
+
+Requisitos: Android SDK 36, JDK 17 para el toolchain y un dispositivo Android API 24 o superior. Configurar la ruta del SDK en Android Studio o en `local.properties` (archivo local excluido de Git).
+
+```powershell
+.\gradlew.bat testDebugUnitTest assembleDebug
+.\gradlew.bat installDebug
+```
+
+Las cinco pruebas del codelab comprueban estado inicial, agregar una tarea, rechazar títulos en blanco, actualizar pendientes al completar y eliminar una tarea. `MainDispatcherRule` reemplaza el dispatcher principal; cada prueba mantiene una suscripción a `uiState` porque usa `WhileSubscribed`.
+
+Validación realizada: `testDebugUnitTest assembleDebug` terminó con **BUILD SUCCESSFUL**; las **5 pruebas pasaron**, sin fallos ni errores, y se generó `app/build/outputs/apk/debug/app-debug.apk`. En este equipo se indicó a Gradle la ruta del JDK 17 local mediante `-Porg.gradle.java.installations.paths=...`; esta ruta depende de cada instalación.
+
+### Evidencia y pasos pendientes para entregar
+
+No se adjunta todavía una captura: el emulador x86_64 instalado no pudo iniciar por falta de aceleración compatible en el equipo ARM. No hay una ejecución visual verificada.
+
+1. Abrir este proyecto en Android Studio y ejecutar en un teléfono o emulador compatible.
+2. Agregar tres tareas, completar una y escribir texto sin enviarlo. Rotar y comprobar que se conservan la lista, la tarea completada y el texto. Eliminar una tarea y revisar el contador.
+3. Guardar una captura real en `docs/capturas/todo-funcionando.png` e insertarla aquí con `![App funcionando](docs/capturas/todo-funcionando.png)`.
+4. Revisar esta explicación y expresar lo aprendido con tus propias palabras y experiencia.
+5. Comprobar que el repositorio sea público o tenga acceso para el docente. Verificar el enlace en incógnito y entregarlo en Canvas.
+
+La implementación y este borrador de documentación se prepararon con asistencia de IA; la revisión personal y la ejecución del ejercicio siguen pendientes.
+
+---
+
+## README original del proyecto base
+
+El contenido siguiente describe el punto de partida y conserva la guía original; la implementación actual es la descrita arriba.
+
 # TODO App
 
 A simple Android TODO app built with Kotlin and Jetpack Compose.
