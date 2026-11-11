@@ -126,3 +126,12 @@ To compare the two, run the command below or open the [comparison on GitHub](htt
 ```bash
 git diff main origin/viewmodel-solution -- app
 ```
+
+
+##EVIDENCIA 
+<img width="1080" height="2220" alt="image" src="https://github.com/user-attachments/assets/7b2fcb24-6af8-43dd-b2d3-dd8d2da2d216" />
+
+<img width="2220" height="1080" alt="image" src="https://github.com/user-attachments/assets/0c31c2b7-f6a9-4048-a007-763a89955cb7" />
+
+<img width="1080" height="2220" alt="image" src="https://github.com/user-attachments/assets/269659ed-d6c3-49ee-ba76-2a7db1b7275e" />
+
